@@ -1,0 +1,58 @@
+plugins { 
+  id "com.marklogic.ml-gradle" version "4.3.2"
+  id "com.palantir.docker-run" version "0.22.1"
+  id 'net.saliman.properties' version '1.4.6'
+  id "java"
+}
+configurations {
+  mlcp
+}
+
+dependencies {
+  mlcp "com.marklogic:mlcp:10.0.6.2"
+
+  /**
+   * mlcp uses Log4j for logging, and if Log4j can't find a configuration file, it will complain and you'll
+   * get none of mlcp's usually-useful logging. It is recommended then that your Gradle configuration for
+   * mlcp include a directory or some other resource that provides a log4j.properties file.
+   */
+  mlcp files("lib")
+}
+repositories {
+  jcenter()
+  mavenCentral()
+
+  // Needed for some mlcp dependencies, such as commons-csv:1.5.1-marklogic
+  maven { url "https://developer.marklogic.com/maven2/" }
+}
+
+task importSampleData(type: com.marklogic.gradle.task.MlcpTask) {
+  classpath = configurations.mlcp
+  command = "IMPORT"
+  database = mlAppConfig.contentDatabaseName
+  output_collections = "sample-import"
+  output_permissions = "rest-reader,read,rest-writer,update"
+  output_uri_replace = ".*/data,'/lnc'"
+
+  args = ["-input_file_path", "./data"]
+}
+dockerRun {
+  name "case32931-demo"
+  image "store/marklogicdb/marklogic-server:9.0-13-dev-centos"
+  ports '8000:8000','8002:8002','8001:8001','8005:8005'
+  clean true
+  env 'MARKLOGIC_INIT': 'true', 'MARKLOGIC_ADMIN_USERNAME': 'admin', 'MARKLOGIC_ADMIN_PASSWORD':'admin'
+  volumes './data': '/tmp/data'
+}
+def hangingTask=tasks.register("hangingTask") {
+  doLast {
+    //leave time for the container to initialize
+    Thread.sleep(40000)
+  }
+
+}
+mlDeploy.dependsOn hangingTask
+
+hangingTask.configure{
+  dependsOn tasks.dockerRun
+}
