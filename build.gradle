@@ -51,8 +51,11 @@ def hangingTask=tasks.register("hangingTask") {
   }
 
 }
-mlDeploy.dependsOn hangingTask
+if (project.hasProperty("withMLDockerRun")) {
+  mlDeploy.dependsOn hangingTask
+}
 
 hangingTask.configure{
   dependsOn tasks.dockerRun
 }
+
